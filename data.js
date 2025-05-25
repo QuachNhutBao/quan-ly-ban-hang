@@ -1988,25 +1988,3 @@ const products = [
     "hetHang": false,
     "icon": ""
   }
-];
-
-// Hàm gán icon dựa trên tên sản phẩm
-function getProductIcon(productName) {
-  const name = productName.toLowerCase();
-  if (name.includes('led') || name.includes('đèn') || name.includes('bóng')) return '💡';
-  if (name.includes('năng lượng')) return '☀️';
-  if (name.includes('ổ') || name.includes('phích')) return '🔌';
-  if (name.includes('cb') || name.includes('công tắc') || name.includes('chống giật')) return '⚡';
-  if (name.includes('đá') || name.includes('lưỡi') || name.includes('kìm') || name.includes('khoan') || name.includes('cưa') || name.includes('kéo')) return '⚙️';
-  return '📦';
-}
-
-// Gán icon cho các sản phẩm
-products.forEach(product => {
-  if (product.tenSanPham) {
-    product.icon = getProductIcon(product.tenSanPham);
-  }
-});
-
-// Xuất dữ liệu
-export { products };
