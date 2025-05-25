@@ -26,6 +26,7 @@ function formatCurrency(amount) {
 }
 
 function parsePriceString(priceStr) {
+  if (!priceStr || priceStr === '') return 0;
   return parseInt(priceStr.replace(/[^\d]/g, ''));
 }
 
@@ -70,23 +71,6 @@ async function fetchProducts(search = '', hideOutOfStock = false) {
   }
 }
 
-async function updateProductStock(productId, stock) {
-  try {
-    const response = await fetch(`/api/products/${productId}/update-stock`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ soLuongTon: stock })
-    });
-    
-    if (!response.ok) throw new Error('Lỗi cập nhật tồn kho');
-    return await response.json();
-  } catch (error) {
-    console.error('Lỗi update stock:', error);
-    showToast('Lỗi cập nhật tồn kho', 'error');
-    return null;
-  }
-}
-
 async function toggleProductStock(productId) {
   try {
     const response = await fetch(`/api/products/${productId}/toggle-stock`, {
@@ -94,7 +78,20 @@ async function toggleProductStock(productId) {
     });
     
     if (!response.ok) throw new Error('Lỗi toggle stock');
-    return await response.json();
+    const updatedProduct = await response.json();
+    
+    // Cập nhật sản phẩm trong danh sách local
+    const productIndex = products.findIndex(p => p.stt === productId);
+    if (productIndex !== -1) {
+      products[productIndex] = updatedProduct;
+    }
+    
+    showToast(`Đã chuyển trạng thái: ${updatedProduct.hetHang ? 'HẾT HÀNG' : 'CÒN HÀNG'}`);
+    
+    // Refresh hiển thị
+    await searchProducts();
+    
+    return updatedProduct;
   } catch (error) {
     console.error('Lỗi toggle stock:', error);
     showToast('Lỗi thay đổi trạng thái hàng', 'error');
@@ -117,12 +114,16 @@ function renderProducts(products) {
   emptyState.style.display = 'none';
   resultsCount.textContent = `Tìm thấy ${products.length} sản phẩm`;
   
-  productsGrid.innerHTML = products.map(product => `
+  productsGrid.innerHTML = products.map(product => {
+    // Xử lý giá cuối cùng - ưu tiên giaHoaGia, nếu không có thì dùng giaSauCK
+    const finalPrice = product.giaHoaGia && product.giaHoaGia !== '' ? product.giaHoaGia : product.giaSauCK;
+    
+    return `
     <div class="product-card ${product.hetHang ? 'out-of-stock' : ''}" data-id="${product.stt}">
       ${product.hetHang ? '<div class="out-of-stock-badge">Hết hàng</div>' : ''}
       
       <div class="product-header">
-        <span class="product-icon">${product.icon}</span>
+        <span class="product-icon">${product.icon || '⚙️'}</span>
         <h3 class="product-name">${product.tenSanPham}</h3>
         <div class="product-specs">
           <span>${product.quyCache || ''}</span>
@@ -131,24 +132,32 @@ function renderProducts(products) {
       </div>
       
       <div class="product-pricing">
+        ${product.giaGoc && product.giaGoc !== '' ? `
         <div class="price-row">
           <span class="price-label">Giá gốc:</span>
           <span class="price-value price-original">${product.giaGoc}</span>
-        </div>
+        </div>` : ''}
+        
+        ${product.chietKhau && product.chietKhau !== '' ? `
         <div class="price-row">
           <span class="price-label">Sau CK (${product.chietKhau}):</span>
           <span class="price-value price-discount">${product.giaSauCK}</span>
-        </div>
+        </div>` : ''}
+        
+        ${product.khuyenMai && product.khuyenMai !== '' ? `
         <div class="price-row">
           <span class="price-label">Giá bán (KM ${product.khuyenMai}):</span>
-          <span class="price-value price-final">${product.giaHoaGia}</span>
-        </div>
+          <span class="price-value price-final">${finalPrice}</span>
+        </div>` : `
+        <div class="price-row">
+          <span class="price-label">Giá bán:</span>
+          <span class="price-value price-final">${finalPrice}</span>
+        </div>`}
       </div>
       
       <div class="stock-info">
-        <span class="stock-count">Tồn kho: ${product.soLuongTon}</span>
         <span class="stock-status ${product.hetHang ? 'out-of-stock' : 'in-stock'}">
-          ${product.hetHang ? 'Hết hàng' : 'Còn hàng'}
+          ${product.hetHang ? '❌ Hết hàng' : '✅ Còn hàng'}
         </span>
       </div>
       
@@ -161,7 +170,7 @@ function renderProducts(products) {
         </button>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function renderCart() {
@@ -212,7 +221,15 @@ function addToCart(productId) {
   const product = products.find(p => p.stt === productId);
   if (!product || product.hetHang) return;
   
-  const price = parsePriceString(product.giaHoaGia);
+  // Lấy giá cuối cùng để thêm vào giỏ hàng
+  const finalPrice = product.giaHoaGia && product.giaHoaGia !== '' ? product.giaHoaGia : product.giaSauCK;
+  const price = parsePriceString(finalPrice);
+  
+  if (price === 0) {
+    showToast('Sản phẩm chưa có giá', 'error');
+    return;
+  }
+  
   const existingItem = cart.find(item => item.id === productId);
   
   if (existingItem) {
@@ -278,7 +295,7 @@ function createOrder() {
   ).join('\n');
   
   const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const orderText = `📋 ĐƠN HÀNG MỚI\n\n${orderDetails}\n\n💰 TỔNG CỘNG: ${formatCurrency(totalAmount)}`;
+  const orderText = `📋 ĐƠN HÀNG VINAHOUS\n\n${orderDetails}\n\n💰 TỔNG CỘNG: ${formatCurrency(totalAmount)}\n\n🕐 Thời gian: ${new Date().toLocaleString('vi-VN')}`;
   
   // Copy to clipboard
   navigator.clipboard.writeText(orderText).then(() => {
@@ -326,9 +343,12 @@ function showProductDetail(productId) {
   const modalOverlay = document.getElementById('modalOverlay');
   
   modalTitle.textContent = product.tenSanPham;
+  
+  const finalPrice = product.giaHoaGia && product.giaHoaGia !== '' ? product.giaHoaGia : product.giaSauCK;
+  
   modalContent.innerHTML = `
     <div class="product-detail">
-      <div class="detail-icon">${product.icon}</div>
+      <div class="detail-icon">${product.icon || '⚙️'}</div>
       <h4>Thông tin sản phẩm</h4>
       <div class="detail-row">
         <span>Quy cách:</span>
@@ -339,15 +359,18 @@ function showProductDetail(productId) {
         <span>${product.dvt}</span>
       </div>
       <div class="detail-row">
-        <span>Tồn kho:</span>
-        <span>${product.soLuongTon}</span>
+        <span>Trạng thái:</span>
+        <span class="${product.hetHang ? 'out-of-stock' : 'in-stock'}">${product.hetHang ? 'Hết hàng' : 'Còn hàng'}</span>
       </div>
       
       <h4>Thông tin giá</h4>
+      ${product.giaGoc && product.giaGoc !== '' ? `
       <div class="detail-row">
         <span>Giá gốc:</span>
         <span>${product.giaGoc}</span>
-      </div>
+      </div>` : ''}
+      
+      ${product.chietKhau && product.chietKhau !== '' ? `
       <div class="detail-row">
         <span>Chiết khấu:</span>
         <span>${product.chietKhau}</span>
@@ -355,14 +378,17 @@ function showProductDetail(productId) {
       <div class="detail-row">
         <span>Giá sau CK:</span>
         <span>${product.giaSauCK}</span>
-      </div>
+      </div>` : ''}
+      
+      ${product.khuyenMai && product.khuyenMai !== '' ? `
       <div class="detail-row">
         <span>Khuyến mãi:</span>
         <span>${product.khuyenMai}</span>
-      </div>
+      </div>` : ''}
+      
       <div class="detail-row" style="font-weight: 600; color: var(--secondary-color);">
         <span>Giá bán cuối:</span>
-        <span>${product.giaHoaGia}</span>
+        <span>${finalPrice}</span>
       </div>
       
       <div class="detail-actions" style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
@@ -370,7 +396,7 @@ function showProductDetail(productId) {
           🛒 Thêm vào đơn
         </button>
         <button class="btn btn-secondary" onclick="toggleProductStock(${product.stt}); closeModal();">
-          ${product.hetHang ? '✅ Có hàng' : '❌ Hết hàng'}
+          ${product.hetHang ? '✅ Đánh dấu có hàng' : '❌ Đánh dấu hết hàng'}
         </button>
       </div>
     </div>
@@ -436,6 +462,16 @@ style.textContent = `
   
   .detail-row:last-child {
     border-bottom: none;
+  }
+  
+  .in-stock {
+    color: var(--secondary-color);
+    font-weight: 600;
+  }
+  
+  .out-of-stock {
+    color: var(--danger-color);
+    font-weight: 600;
   }
 `;
 document.head.appendChild(style);
