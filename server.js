@@ -9,6 +9,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Đã xảy ra lỗi server' });
+});
 
 // Import product data
 const productsData = require('./data.js');
