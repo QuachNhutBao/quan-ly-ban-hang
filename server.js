@@ -16,7 +16,7 @@ const productsData = require('./data.js');
 // Process product data - add icons and ensure hetHang property
 let products = productsData.map(product => {
   if (!product.icon && product.tenSanPham) {
-    const name = product.tenSanPham.toLowerCase();
+    const name = product.tenSanPham?.toLowerCase() || '';
     if (name.includes('led') || name.includes('đèn') || name.includes('búp') || name.includes('âm trần')) {
       product.icon = '💡';
     } else if (name.includes('năng lượng mặt trời')) {
