@@ -91,7 +91,7 @@ app.get('/api/products/:id', (req, res) => {
 });
 
 app.put('/api/products/:id/toggle-stock', (req, res) => {
-  const product = products.find(p => p.stt == req.params.id);
+  const product = products.find(p => p.stt === parseInt(req.params.id));
   if (product) {
     product.hetHang = !product.hetHang;
     console.log(`📦 Sản phẩm ${product.tenSanPham} đã chuyển trạng thái: ${product.hetHang ? 'HẾT HÀNG' : 'CÒN HÀNG'}`);
