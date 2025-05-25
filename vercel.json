@@ -19,9 +19,10 @@
       "src": "/(.*\\.(css|js|html|png|jpg))",
       "dest": "/public/$1"
     },
-    {
-      "src": "/(.*)",
-      "dest": "/server.js"
-    }
+          {
+  "src": "/(.*\\.(css|js|html|png|jpg|ico|svg|woff|woff2))",
+  "dest": "/public/$1"
+}
+    
   ]
 }
