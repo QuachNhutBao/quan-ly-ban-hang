@@ -10,12 +10,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Import dữ liệu sản phẩm
+// Import product data
 const productsData = require('./data.js');
 
-// Dữ liệu sản phẩm - thêm icon cho các sản phẩm không có
+// Process product data - add icons and ensure hetHang property
 let products = productsData.map(product => {
-  // Tự động thêm icon nếu chưa có
   if (!product.icon && product.tenSanPham) {
     const name = product.tenSanPham.toLowerCase();
     if (name.includes('led') || name.includes('đèn') || name.includes('búp') || name.includes('âm trần')) {
@@ -35,25 +34,32 @@ let products = productsData.map(product => {
     }
   }
   
-  // Đảm bảo có thuộc tính hetHang
   if (typeof product.hetHang === 'undefined') {
     product.hetHang = false;
   }
   
+  // Add category based on product name
+  product.category = name.includes('led') || name.includes('đèn') || name.includes('búp') || name.includes('âm trần') ? 'Lighting' :
+                     name.includes('năng lượng mặt trời') ? 'Solar' :
+                     name.includes('ổ cắm') || name.includes('phích') || name.includes('ổ dài') || name.includes('ổ quay') ? 'Sockets' :
+                     name.includes('chống giật') || name.includes('cb cóc') || name.includes('hộp') ? 'CircuitBreakers' :
+                     name.includes('đá cắt') || name.includes('khoan') || name.includes('cưa') || name.includes('kéo') || name.includes('kìm') || name.includes('khò') || name.includes('nhám') ? 'Tools' :
+                     name.includes('vợt muỗi') ? 'MosquitoRackets' : 'Other';
+  
   return product;
 });
 
-// Lọc bỏ sản phẩm rỗng (stt 142)
+// Filter out empty products
 products = products.filter(product => product.tenSanPham && product.tenSanPham.trim() !== '');
 
-console.log(`🗂️  Đã load ${products.length} sản phẩm từ database`);
+console.log(`🗂️ Đã load ${products.length} sản phẩm từ database`);
 
 // API Routes
 app.get('/api/products', (req, res) => {
-  const { search, hideOutOfStock } = req.query;
+  const { search, hideOutOfStock, category } = req.query;
   let filteredProducts = [...products];
   
-  // Lọc theo tìm kiếm
+  // Filter by search term
   if (search) {
     const searchTerm = search.toLowerCase();
     filteredProducts = filteredProducts.filter(product => 
@@ -61,7 +67,12 @@ app.get('/api/products', (req, res) => {
     );
   }
   
-  // Ẩn sản phẩm hết hàng
+  // Filter by category
+  if (category) {
+    filteredProducts = filteredProducts.filter(product => product.category === category);
+  }
+  
+  // Hide out-of-stock products
   if (hideOutOfStock === 'true') {
     filteredProducts = filteredProducts.filter(product => !product.hetHang);
   }
@@ -69,6 +80,7 @@ app.get('/api/products', (req, res) => {
   res.json(filteredProducts);
 });
 
+// Other endpoints remain unchanged
 app.get('/api/products/:id', (req, res) => {
   const product = products.find(p => p.stt == req.params.id);
   if (product) {
@@ -78,7 +90,6 @@ app.get('/api/products/:id', (req, res) => {
   }
 });
 
-// Cập nhật trạng thái hết hàng
 app.put('/api/products/:id/toggle-stock', (req, res) => {
   const product = products.find(p => p.stt == req.params.id);
   if (product) {
@@ -90,13 +101,10 @@ app.put('/api/products/:id/toggle-stock', (req, res) => {
   }
 });
 
-// API cập nhật thông tin sản phẩm
 app.put('/api/products/:id/update', (req, res) => {
   const product = products.find(p => p.stt == req.params.id);
   if (product) {
     const updateData = req.body;
-    
-    // Chỉ cho phép cập nhật một số trường nhất định
     const allowedFields = ['tenSanPham', 'quyCache', 'dvt', 'giaGoc', 'chietKhau', 'giaSauCK', 'khuyenMai', 'giaHoaGia', 'hetHang'];
     
     allowedFields.forEach(field => {
@@ -105,14 +113,13 @@ app.put('/api/products/:id/update', (req, res) => {
       }
     });
     
-    console.log(`✏️  Đã cập nhật thông tin sản phẩm: ${product.tenSanPham}`);
+    console.log(`✏️ Đã cập nhật thông tin sản phẩm: ${product.tenSanPham}`);
     res.json(product);
   } else {
     res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
   }
 });
 
-// API thống kê đơn giản
 app.get('/api/stats', (req, res) => {
   const totalProducts = products.length;
   const inStockProducts = products.filter(p => !p.hetHang).length;
@@ -126,12 +133,10 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
-// Serve main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// API test
 app.get('/api/test', (req, res) => {
   res.json({ 
     message: '🚀 API Vinahous đang hoạt động!', 
@@ -140,12 +145,10 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Middleware xử lý lỗi 404
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Endpoint không tồn tại' });
 });
 
-// Server sẵn sàng
 app.listen(PORT, () => {
   console.log(`🚀 Server Vinahous đang chạy tại http://localhost:${PORT}`);
   console.log(`📱 Truy cập bằng điện thoại tại: http://[IP-của-bạn]:${PORT}`);
